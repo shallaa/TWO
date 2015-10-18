@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-
+  <title></title>
+  <link rel="stylesheet" href="http://benvanik.github.io/WebGL-Inspector/core/lib/gli.all.css">
+  <style>
+    body, html {
+      height: 100%;
+      padding: 0px;
+      margin: 0px;
+      background: #000;
+    }
+  </style>
+  <script src="http://benvanik.github.io/WebGL-Inspector/core/lib/gli.all.js"></script>
+  <script src="../js/stats.js"></script>
+  <script src="../two.js"></script>
+  <script>
+    (function(W) {
+      W['requestAnimFrame'] = (function() {
+        return W['requestAnimationFrame'] ||
+            W['webkitRequestAnimationFrame'] ||
+            W['mozRequestAnimationFrame'] ||
+            W['oRequestAnimationFrame'] ||
+            W['msRequestAnimationFrame'] ||
+            function(callback) { return W.setTimeout(callback, 1000 / 60); };
+      })();
+
+      W['cancelRequestAnimFrame'] = (function() {
+        return W['cancelCancelRequestAnimationFrame'] ||
+            W['webkitCancelRequestAnimationFrame'] ||
+            W['mozCancelRequestAnimationFrame'] ||
+            W['oCancelRequestAnimationFrame'] ||
+            W['msCancelRequestAnimationFrame'] ||
+            W.clearInterval;
+      })();
+    })(this);
+  </script>
+  <script>
+    (function main() {
+      // Create enabled event
+      function fireEnabledEvent() {
+        // If gli exists, then we are already present and shouldn't do anything
+        if (!window.gli) {
+          setTimeout(function () {
+            var enabledEvent = document.createEvent("Event");
+            enabledEvent.initEvent("WebGLEnabledEvent", true, true);
+            document.dispatchEvent(enabledEvent);
+          }, 0);
+        } else {
+          //console.log("WebGL Inspector already embedded on the page - disabling extension");
+        }
+      };
+
+      // Grab the path root from the extension
+      document.addEventListener("WebGLInspectorReadyEvent", function (e) {
+        var pathElement = document.getElementById("__webglpathroot");
+        if (window["gliloader"]) {
+          gliloader.pathRoot = pathElement.innerText;
+        } else {
+          // TODO: more?
+          window.gliCssUrl = pathElement.innerText + "gli.all.css";
+        }
+      }, false);
+
+      // Rewrite getContext to snoop for webgl
+      var originalGetContext = HTMLCanvasElement.prototype.getContext;
+      if (!HTMLCanvasElement.prototype.getContextRaw) {
+        HTMLCanvasElement.prototype.getContextRaw = originalGetContext;
+      }
+      HTMLCanvasElement.prototype.getContext = function () {
+        var ignoreCanvas = this.internalInspectorSurface;
+        if (ignoreCanvas) {
+          return originalGetContext.apply(this, arguments);
+        }
+
+        var result = originalGetContext.apply(this, arguments);
+        if (result == null) {
+          return null;
+        }
+
+        var contextNames = ["moz-webgl", "webkit-3d", "experimental-webgl", "webgl", "3d"];
+        var requestingWebGL = contextNames.indexOf(arguments[0]) != -1;
+        if (requestingWebGL) {
+          // Page is requesting a WebGL context!
+          fireEnabledEvent(this);
+
+          // If we are injected, inspect this context
+          if (window.gli) {
+            if (gli.host.inspectContext) {
+              // TODO: pull options from extension
+              result = gli.host.inspectContext(this, result);
+              // NOTE: execute in a timeout so that if the dom is not yet
+              // loaded this won't error out.
+              window.setTimeout(function() {
+                var hostUI = new gli.host.HostUI(result);
+                result.hostUI = hostUI; // just so we can access it later for debugging
+              }, 0);
+            }
+          }
+        }
+
+        return result;
+      };
+    })();
+  </script>
+</head>
+<body>
+<canvas id="viewport0"></canvas>
+<script>
+  // viewport0
+  (function initViewport0() {
+    var two = TWO.classes();
+    var world = new two.World(document.getElementById('viewport0'));
+    var sprites = [];
+    var sprite;
+    var i = 0;
+
+    world.viewport(innerWidth, innerHeight);
+    world.backgroundColor = {r:1, g:1, b:1, a:1};
+
+    for( ; i < 10000; i++) {
+      sprite = new two.Sprite({
+        x: -(i * 50),
+        y: 0,
+        width: 100,
+        height: 100,
+        colorR: Math.random(),
+        colorG: Math.random(),
+        colorB: Math.random()
+      });
+
+      sprite.direction = 'toRight';
+      sprite.maxRight = innerWidth - 100;
+      sprite.maxBottom = innerHeight - 100;
+      sprite.maxLeft = 0;
+      sprite.maxTop = 100;
+      sprites.push(sprite);
+      world.add(sprite);
+    }
+
+    var stats = new Stats();
+    stats.setMode(0);
+
+    stats.domElement.style.position = 'absolute';
+    stats.domElement.style.left = '0px';
+    stats.domElement.style.top = '0px';
+
+    document.body.appendChild(stats.domElement);
+
+    (function update() {
+      var index = sprites.length;
+      var sprite;
+
+      while(index--) {
+        sprite = sprites[index];
+
+        if(sprite.direction == 'toRight') {
+          sprite.x += 10;
+
+          if(sprite.x >= sprite.maxRight) {
+            sprite.maxRight -= 100;
+            sprite.direction = 'toBottom';
+          }
+        } else if(sprite.direction == 'toBottom') {
+          sprite.y += 10;
+
+          if(sprite.y >= sprite.maxBottom) {
+            sprite.maxBottom -= 100;
+            sprite.direction = 'toLeft';
+          }
+        } else if(sprite.direction == 'toLeft') {
+          sprite.x -= 10;
+
+          if(sprite.x <= sprite.maxLeft) {
+            sprite.maxLeft += 100;
+            sprite.direction = 'toTop';
+          }
+        } else if(sprite.direction == 'toTop') {
+          sprite.y -= 10;
+
+          if(sprite.y <= sprite.maxTop) {
+            sprite.maxTop += 100;
+            sprite.direction = 'toRight';
+          }
+        }
+      }
+
+      stats.update();
+      world.render();
+
+      requestAnimFrame(update);
+    })();
+  })();
+</script>
+</body>
+</html>
