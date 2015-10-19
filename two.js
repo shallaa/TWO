@@ -172,7 +172,7 @@ var TWO = (function() {
     })(properties.name, properties.attributes, properties.initialize, properties.methods);
   });
 
-  define('classes', function classes(context) {
+  define('require', function require(context) {
     var k;
     if(!context) context = {};
     for(k in twoClasses) if(twoClasses.hasOwnProperty(k)) context[k] = twoClasses[k];
